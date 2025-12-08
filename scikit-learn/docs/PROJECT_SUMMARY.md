@@ -3,7 +3,7 @@
 ## Customer Churn Prediction - From DataCamp to Production
 
 **Created for**: Pranav Donepudi  
-**Date**: December 2024  
+**Date**: December 2025 
 **Based on**: DataCamp Supervised Learning with Scikit-learn - Chapter 1
 
 ---
@@ -64,7 +64,7 @@ python src/classification_metrics_reference.py
 
 **Run it**:
 ```bash
-python src/train_model.py
+python src/train_model_with_pipeline.py
 ```
 
 **Output includes**:

@@ -1,4 +1,4 @@
-# Customer Churn Prediction Project 🎯
+# Customer Churn Prediction Project 
 
 **Applying DataCamp "Supervised Learning with Scikit-learn" concepts to a real project**
 
@@ -7,7 +7,7 @@ Course: DataCamp - Supervised Learning with Scikit-learn (Chapter 1: Classificat
 
 ---
 
-## 📚 What This Project Demonstrates
+##  What This Project Demonstrates
 
 This project implements everything you learned in **Chapter 1: Classification**:
 
