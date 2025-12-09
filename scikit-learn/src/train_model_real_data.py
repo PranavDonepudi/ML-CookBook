@@ -6,15 +6,8 @@ This script works with REAL data, not synthetic!
 Dataset: Telco Customer Churn from Kaggle
 URL: https://www.kaggle.com/datasets/blastchar/telco-customer-churn
 
-What's different from synthetic data:
-1. Missing values to handle
-2. Categorical features to encode
-3. Class imbalance to address
-4. Real business patterns
-5. Feature engineering opportunities
-
 Author: Pranav Donepudi
-Date: December 2024
+Date: December 2025
 """
 
 import pandas as pd
