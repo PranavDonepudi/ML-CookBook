@@ -336,7 +336,7 @@ pip install -r api/requirements.txt
 python api/api.py
 
 # Test
-python api/test_api.py
+python tests/test_api.py
 ```
 
 ## 📈 Model Performance

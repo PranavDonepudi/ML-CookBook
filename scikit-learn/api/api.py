@@ -166,15 +166,30 @@ class ChurnPreprocessor:
 
         Steps:
         1. Convert to DataFrame
-        2. Encode binary features
-        3. One-hot encode categorical features (drop_first=True to match training!)
-        4. Engineer new features
-        5. Ensure all columns match training data
+        2. Validate and clean input data
+        3. Encode binary features
+        4. One-hot encode categorical features (drop_first=True to match training!)
+        5. Engineer new features
+        6. Ensure all columns match training data
         """
         # Step 1: Convert to DataFrame
         df = pd.DataFrame([customer_data])
 
-        # Step 2: Encode binary features
+        # Step 2: Validate and clean numeric fields
+        numeric_fields = ["tenure", "MonthlyCharges", "TotalCharges", "SeniorCitizen"]
+        for field in numeric_fields:
+            if field in df.columns:
+                # Convert to numeric, handle any issues
+                df[field] = pd.to_numeric(df[field], errors="coerce")
+                # Fill NaN with sensible defaults
+                if field == "tenure":
+                    df[field] = df[field].fillna(0)
+                elif field in ["MonthlyCharges", "TotalCharges"]:
+                    df[field] = df[field].fillna(0)
+                elif field == "SeniorCitizen":
+                    df[field] = df[field].fillna(0)
+
+        # Step 3: Encode binary features
         binary_maps = {
             "gender": {"Male": 1, "Female": 0},
             "Partner": {"Yes": 1, "No": 0},
@@ -186,8 +201,10 @@ class ChurnPreprocessor:
         for col, mapping in binary_maps.items():
             if col in df.columns:
                 df[col] = df[col].map(mapping)
+                # If mapping failed, default to 0
+                df[col] = df[col].fillna(0)
 
-        # Step 3: One-hot encode categorical features
+        # Step 4: One-hot encode categorical features
         # IMPORTANT: Must match training exactly - these are the categorical columns from raw data
         categorical_cols = []
         for col in df.columns:
@@ -198,20 +215,37 @@ class ChurnPreprocessor:
         if categorical_cols:
             df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
 
-        # Step 4: Feature Engineering (must match training!)
+        # Step 5: Feature Engineering (must match training!)
         df = self.engineer_features(df)
 
-        # Step 5: Add missing columns with zeros (features that didn't appear in this customer)
-        # The model expects all 46 features from training
-        # We'll handle missing columns after feature engineering
+        # Step 6: Final validation - check for NaN
+        if df.isnull().any().any():
+            # Log which columns have NaN
+            nan_cols = df.columns[df.isnull().any()].tolist()
+            print(f"Warning: NaN found in columns: {nan_cols}")
+            # Fill all remaining NaN with 0
+            df = df.fillna(0)
 
         return df
 
     def engineer_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Apply the EXACT same feature engineering as training.
+        CRITICAL: Handle all NaN cases to prevent model errors!
         """
         df_eng = df.copy()
+
+        # Ensure numeric columns are actually numeric
+        numeric_cols = ["tenure", "MonthlyCharges", "TotalCharges", "SeniorCitizen"]
+        for col in numeric_cols:
+            if col in df_eng.columns:
+                df_eng[col] = pd.to_numeric(df_eng[col], errors="coerce")
+
+        # Fill any NaN in base features with 0
+        df_eng["tenure"] = df_eng["tenure"].fillna(0)
+        df_eng["MonthlyCharges"] = df_eng["MonthlyCharges"].fillna(0)
+        df_eng["TotalCharges"] = df_eng["TotalCharges"].fillna(0)
+        df_eng["SeniorCitizen"] = df_eng["SeniorCitizen"].fillna(0)
 
         # Aggregation - Count services not subscribed
         service_no_cols = [
@@ -236,33 +270,52 @@ class ChurnPreprocessor:
         else:
             df_eng["total_services"] = 3
 
-        # Ratio features
-        df_eng["monthly_total_ratio"] = df_eng["MonthlyCharges"] / (
-            df_eng["TotalCharges"] + 1
-        )
-        df_eng["services_per_dollar"] = df_eng["total_services"] / (
-            df_eng["MonthlyCharges"] + 1
-        )
-        df_eng["tenure_per_dollar"] = df_eng["tenure"] / (df_eng["MonthlyCharges"] + 1)
+        # Ratio features - use fillna to handle division edge cases
+        df_eng["monthly_total_ratio"] = (
+            df_eng["MonthlyCharges"] / (df_eng["TotalCharges"] + 1)
+        ).fillna(0)
+        df_eng["services_per_dollar"] = (
+            df_eng["total_services"] / (df_eng["MonthlyCharges"] + 1)
+        ).fillna(0)
+        df_eng["tenure_per_dollar"] = (
+            df_eng["tenure"] / (df_eng["MonthlyCharges"] + 1)
+        ).fillna(0)
 
         # Interaction features
-        df_eng["tenure_x_charges"] = df_eng["tenure"] * df_eng["MonthlyCharges"]
-        df_eng["senior_charges"] = df_eng["SeniorCitizen"] * df_eng["MonthlyCharges"]
+        df_eng["tenure_x_charges"] = (
+            df_eng["tenure"] * df_eng["MonthlyCharges"]
+        ).fillna(0)
+        df_eng["senior_charges"] = (
+            df_eng["SeniorCitizen"] * df_eng["MonthlyCharges"]
+        ).fillna(0)
 
-        # Binning features
-        df_eng["tenure_group"] = pd.cut(
-            df_eng["tenure"],
-            bins=[-1, 12, 24, 48, 100],
-            labels=[0, 1, 2, 3],
-            include_lowest=True,
-        ).astype(int)
+        # Binning features - handle out of range values
+        try:
+            df_eng["tenure_group"] = pd.cut(
+                df_eng["tenure"],
+                bins=[-1, 12, 24, 48, 100],
+                labels=[0, 1, 2, 3],
+                include_lowest=True,
+            ).astype(int)
+        except:
+            # If binning fails, use a simple approach
+            df_eng["tenure_group"] = 0
+            df_eng.loc[df_eng["tenure"] > 12, "tenure_group"] = 1
+            df_eng.loc[df_eng["tenure"] > 24, "tenure_group"] = 2
+            df_eng.loc[df_eng["tenure"] > 48, "tenure_group"] = 3
 
-        df_eng["charge_level"] = pd.cut(
-            df_eng["MonthlyCharges"],
-            bins=[0, 35, 70, 150],
-            labels=[0, 1, 2],
-            include_lowest=True,
-        ).astype(int)
+        try:
+            df_eng["charge_level"] = pd.cut(
+                df_eng["MonthlyCharges"],
+                bins=[0, 35, 70, 150],
+                labels=[0, 1, 2],
+                include_lowest=True,
+            ).astype(int)
+        except:
+            # If binning fails, use a simple approach
+            df_eng["charge_level"] = 0
+            df_eng.loc[df_eng["MonthlyCharges"] > 35, "charge_level"] = 1
+            df_eng.loc[df_eng["MonthlyCharges"] > 70, "charge_level"] = 2
 
         # Boolean flags
         df_eng["high_risk_new"] = (
@@ -271,12 +324,14 @@ class ChurnPreprocessor:
         df_eng["low_engagement"] = (df_eng["total_services"] < 2).astype(int)
         df_eng["long_term"] = (df_eng["tenure"] > 36).astype(int)
 
-        # Calculate quantile on the fly (approximate)
+        # Calculate high value (approximate)
         df_eng["high_value"] = (df_eng["TotalCharges"] > 3500).astype(int)
 
         # Time-based features
-        df_eng["avg_monthly_charges"] = df_eng["TotalCharges"] / (df_eng["tenure"] + 1)
-        df_eng["customer_ltv"] = df_eng["tenure"] * df_eng["MonthlyCharges"]
+        df_eng["avg_monthly_charges"] = (
+            df_eng["TotalCharges"] / (df_eng["tenure"] + 1)
+        ).fillna(0)
+        df_eng["customer_ltv"] = (df_eng["tenure"] * df_eng["MonthlyCharges"]).fillna(0)
 
         # Risk score
         df_eng["risk_score"] = 0
@@ -285,7 +340,10 @@ class ChurnPreprocessor:
         df_eng["risk_score"] += (df_eng["total_services"] < 2).astype(int) * 2
 
         if "Contract_Month-to-month" in df_eng.columns:
-            df_eng["risk_score"] += df_eng["Contract_Month-to-month"] * 4
+            df_eng["risk_score"] += df_eng["Contract_Month-to-month"].fillna(0) * 4
+
+        # Final check: Replace any remaining NaN with 0
+        df_eng = df_eng.fillna(0)
 
         return df_eng
 
@@ -537,11 +595,26 @@ async def predict_batch(customers: List[CustomerInput]):
 
     try:
         results = []
-        for customer in customers:
-            result = await predict_churn(customer)
-            results.append(result)
+        errors = []
 
-        return {"count": len(results), "predictions": results}
+        for i, customer in enumerate(customers):
+            try:
+                result = await predict_churn(customer)
+                results.append(result)
+            except Exception as e:
+                errors.append({"customer_index": i, "error": str(e)})
+
+        response = {
+            "count": len(results),
+            "successful": len(results),
+            "failed": len(errors),
+            "predictions": results,
+        }
+
+        if errors:
+            response["errors"] = errors
+
+        return response
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Batch prediction error: {str(e)}")
