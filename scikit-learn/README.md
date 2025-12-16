@@ -309,12 +309,41 @@ You've mastered this project when you can:
 
 ---
 
-## 🙏 Acknowledgments
+# Customer Churn Prediction - 93.9% Recall
 
-- DataCamp for the excellent Supervised Learning course
-- Scikit-learn team for the amazing library
-- The ML community for inspiration
+Predicting customer churn for telecom company using machine learning.
 
----
+## 🎯 Results
+- **93.9% recall** - catching 351 out of 374 churners
+- **84.7% ROC-AUC** 
+- **Production-ready FastAPI** deployment
+
+## 🔧 Technical Stack
+- Python, scikit-learn, pandas, FastAPI
+- Logistic Regression with feature engineering
+- 16 engineered features
+- SMOTE, GridSearchCV, threshold tuning
+
+## 📊 Dataset
+Telco Customer Churn (7,043 customers, 21 features)
+
+## 🚀 Quick Start
+```bash
+# Install
+pip install -r api/requirements.txt
+
+# Run API
+python api/api.py
+
+# Test
+python api/test_api.py
+```
+
+## 📈 Model Performance
+[Include confusion matrix screenshot]
+
+## 💼 Business Impact
+Catching 93.9% of churners allows proactive retention, 
+saving ~$351,000 per 1,000 customers (assuming $1,000 LTV).
 
 **Remember**: The goal isn't to complete the course, it's to build projects that demonstrate your skills! 🚀
